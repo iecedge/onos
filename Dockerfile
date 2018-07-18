@@ -1,51 +1,71 @@
 # First stage is the build environment
-FROM sgrio/java-oracle:jdk_8 as builder
-MAINTAINER Jonathan Hart <jono@opennetworking.org>
+FROM debian:stretch as builder
 
-# Set the environment variables
-ENV HOME /root
-ENV BUILD_NUMBER docker
-ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates wget python maven git curl automake bison flex g++ git libboost-all-dev libevent-dev libtool make pkg-config thrift-compiler patch software-properties-common gnupg build-essential gperf ruby perl libsqlite3-dev libfontconfig1-dev libicu-dev libfreetype6 libpng-dev libjpeg-dev libx11-dev libxext-dev zip libssl1.0-dev unzip automake ninja-build golang
 
-# Copy in the source
-COPY . /src/onos/
+RUN apt-get update && \
+    add-apt-repository ppa:webupd8team/java -y && \
+    apt-get update && \
+    echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections && \
+    apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated
 
-# Build ONOS
-# We extract the tar in the build environment to avoid having to put the tar
-# in the runtime environment - this saves a lot of space
-# FIXME - dependence on ONOS_ROOT and git at build time is a hack to work around
-# build problems
-WORKDIR /src/onos
-RUN apt-get update && apt-get install -y zip python git bzip2 && \
-        export ONOS_ROOT=/src/onos && \
-        tools/build/onos-buck build onos && \
-        mkdir -p /src/tar && \
-        cd /src/tar && \
-        tar -xf /src/onos/buck-out/gen/tools/package/onos-package/onos.tar.gz --strip-components=1 && \
-        rm -rf /src/onos/buck-out .git
+RUN git clone git://github.com/ariya/phantomjs.git \
+    && cd phantomjs \
+    && git checkout 2.1 \
+    && git submodule init \
+    && git submodule update \
+    && cd /phantomjs \
+    && python ./build.py --qt-config "-I /usr/include/openssl-1.0/ -L/usr/lib/openssl-1.0/" \
+    && apt-get install -y libssl-dev nodejs phantomjs procps
+
+RUN cd / \
+    && export PROTOC_VERSION=3.0.2 \
+    && git clone https://github.com/google/protobuf.git \
+    && cd protobuf \
+    && git checkout v$PROTOC_VERSION \
+    && ./autogen.sh \
+    && ./configure \
+    && make \
+    && make install \
+    && export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
+    && echo /usr/local/lib >> /etc/ld.so.conf \
+    && ldconfig
+
+COPY . /onos
+
+RUN export QT_QPA_PLATFORM=minimal \
+    && export ONOS_ROOT=/onos \
+    && sed -i 's/jar -xf/unzip/g' /onos/tools/test/bin/onos-stage-apps \
+    && cd /onos \
+    && /onos/tools/build/onos-buck build onos --show-output -v 7 \
+    && ONOS_VERSION=$(grep ONOS_VERSION onos.defs | xargs) \
+    && echo ${ONOS_VERSION#*= } > VERSION
 
 
 # Second stage is the runtime environment
-FROM anapsix/alpine-java:8_server-jre
+FROM debian:stretch
 
-# Change to /root directory
-RUN apk update && \
-        apk add curl && \
-        mkdir -p /root/onos
-WORKDIR /root/onos
+RUN apt-get update \
+  && apt-get install -y curl software-properties-common \
+    && add-apt-repository ppa:webupd8team/java -y \
+    && apt-get update \
+    && echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections \
+    && apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated \
+    && mkdir -p /onos
 
 # Install ONOS
-COPY --from=builder /src/tar/ .
+COPY --from=builder /onos/buck-out/gen/tools/package/onos-package/onos.tar.gz .
+COPY --from=builder /onos/VERSION .
 
 # Configure ONOS to log to stdout
-RUN sed -ibak '/log4j.rootLogger=/s/$/, stdout/' $(ls -d apache-karaf-*)/etc/org.ops4j.pax.logging.cfg
+RUN tar zxvf onos.tar.gz -C /onos/ \
+    && rm onos.tar.gz \
+    && export ONOS_VERSION=$(cat /VERSION) \
+    && mv /onos/onos-$ONOS_VERSION /onos/onos \
+    && cd onos/onos \
+    && sed -ibak '/log4j.rootLogger=/s/$/, stdout/' $(ls -d apache-karaf-*)/etc/org.ops4j.pax.logging.cfg
 
-LABEL org.label-schema.name="ONOS" \
-      org.label-schema.description="SDN Controller" \
-      org.label-schema.usage="http://wiki.onosproject.org" \
-      org.label-schema.url="http://onosproject.org" \
-      org.label-scheme.vendor="Open Networking Foundation" \
-      org.label-schema.schema-version="1.0"
 
 # Ports
 # 6653 - OpenFlow
@@ -56,5 +76,6 @@ LABEL org.label-schema.name="ONOS" \
 EXPOSE 6653 6640 8181 8101 9876
 
 # Get ready to run command
+WORKDIR /onos/onos
 ENTRYPOINT ["./bin/onos-service"]
 CMD ["server"]

@@ -33,7 +33,7 @@ RESOURCES = {
     'WEB-INF/classes/onos.js': 'src/main/webapp/onos.js',
     'WEB-INF/classes/nav.html': 'src/main/webapp/nav.html',
     'WEB-INF/classes/app/view': 'src/main/webapp/app/view',
-    'WEB-INF/classes/raw': 'src/main/webapp/raw',
+    'WEB-INF/classes/raw': 'src/main/webapp/raw'
 }
 
 include_defs('//bucklets/node.bucklet')
@@ -44,7 +44,7 @@ fetch_node(version = NODE_VERSION)
 export_file (
     name = 'onos-tools-gui-exe',
     src = sh_src,
-    visibility = [ 'PUBLIC' ],
+    visibility = [ 'PUBLIC' ]
 )
 
 genrule(
@@ -54,7 +54,7 @@ genrule(
         + ' $(location :node-release-' + NODE_VERSION + ') '
         + '$(location :node-bin-' + NODE_VERSION + ') > $OUT',
     out = 'onos-tools-gui.log',
-    visibility = [ 'PUBLIC' ],
+    visibility = [ 'PUBLIC' ]
 )
 
 osgi_jar_with_tests (
@@ -63,5 +63,5 @@ osgi_jar_with_tests (
     test_deps = TEST_DEPS,
     include_resources = RESOURCES,
     web_context = '/onos/ui',
-    do_javadocs = False,
+    do_javadocs = False
 )

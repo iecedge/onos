@@ -8,10 +8,11 @@ BMV2_COMMIT = 'a3f0ebe4c0f10a656f8aa1ad68cb20402a62b0ee'
 BMV2_BASEURL = 'https://cdn.rawgit.com/p4lang/behavioral-model/' + BMV2_COMMIT
 BMV2_NAMESPACE = 'org.onosproject.bmv2.thriftapi'
 
-THRIFT_EXE_BASEURL = 'https://cdn.rawgit.com/ccascone/mvn-thrift-compiler/1.1_0.9.3/exe/'
+THRIFT_EXE_BASEURL = 'http://artifacts.cachengo.com/thrift-compiler/0.9.3/'
 THRIFT_EXE_SHA1S = {
     'thrift-linux-x86_64.exe':'9b7b5d6eabc9552b8227e8f63981bc15c0985dd5',
-    'thrift-osx-x86_64.exe':'b9215c5141f56fd277b7cf41d9745af847afe498'
+    'thrift-osx-x86_64.exe':'b9215c5141f56fd277b7cf41d9745af847afe498',
+    'thrift-linux-aarch64.exe':'40b6d01b8574b9d372ec42c4c14b99dad9fa1cfd'
 }
 
 def prebuilt_thrift_compiler():
