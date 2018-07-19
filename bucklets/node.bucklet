@@ -3,17 +3,23 @@ NODE_RELEASE_BASE_URL = "https://nodejs.org/dist/"
 
 NODE_SHA1S = {
     "node-v8.1.2-linux-x64.tar.gz":"61a609c83e2d3458cc2301a63b212a97e6b9f809",
-    "node-v8.1.2-darwin-x64.tar.gz":"a8b31fd645480661a8a777d9b4466dca0e6deb33"
+    "node-v8.1.2-darwin-x64.tar.gz":"a8b31fd645480661a8a777d9b4466dca0e6deb33",
+    "node-v8.1.2-linux-arm64.tar.gz":"a66cbd136ee21507e91e4b1a5678b5585eae6239"
 }
 
 def get_system_arch():
     import platform
     os = platform.system().lower()
-    return os
+    arch = platform.machine()
+    if arch == "x86_64":
+        arch = "x64"
+    elif arch == "aarch64":
+        arch = "arm64"
+    return "%s-%s" % (os, arch)
 
 def fetch_node(version):
-    file_name = "node-%s-%s-x64" % (version, get_system_arch())
-    file_fullname = "node-%s-%s-x64.tar.gz" % (version, get_system_arch())
+    file_name = "node-%s-%s" % (version, get_system_arch())
+    file_fullname = "node-%s-%s.tar.gz" % (version, get_system_arch())
     if file_fullname not in NODE_SHA1S:
         raise Exception("Cannot download %s, architecture or version not supported" % file_name)
 
