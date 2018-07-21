@@ -1,0 +1,21 @@
+language: python
+
+branches:
+  only:
+    - master
+
+integrations:
+  hub:
+    - integrationName: docker_registry
+      type: dockerRegistryLogin
+
+build:
+
+  ci:
+    - docker build -t onos .
+
+  post_ci:
+    - export IMAGE_TAG=master
+    - export AARCH=`uname -m`
+    - docker tag onos cachengo/onos-$AARCH:$IMAGE_TAG
+    - docker push cachengo/onos-$AARCH:$IMAGE_TAG
