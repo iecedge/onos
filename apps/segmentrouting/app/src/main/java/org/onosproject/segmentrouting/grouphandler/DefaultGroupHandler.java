@@ -66,7 +66,6 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static org.onlab.util.Tools.groupedThreads;
-import static org.onosproject.segmentrouting.SegmentRoutingManager.INTERNAL_VLAN;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -358,7 +357,7 @@ public class DefaultGroupHandler {
         // if needed by the switch pipeline. Since hashed next-hops are always to
         // other neighboring routers, there is no subnet assigned on those ports.
         TrafficSelector.Builder metabuilder = DefaultTrafficSelector.builder();
-        metabuilder.matchVlanId(INTERNAL_VLAN);
+        metabuilder.matchVlanId(srManager.getDefaultInternalVlan());
         NextObjective.Builder nextObjBuilder = DefaultNextObjective.builder()
                 .withId(nextId)
                 .withType(NextObjective.Type.HASHED)
@@ -384,10 +383,11 @@ public class DefaultGroupHandler {
         ObjectiveContext context = new DefaultObjectiveContext(
                 (objective) -> log.debug("addToHash port/label {} addedTo "
                         + "NextObj {} on {}", portLabels, nextId, deviceId),
-                (objective, error) ->
-                        log.warn("addToHash failed to add port/label {} to"
-                                + " NextObj {} on {}: {}", portLabels,
-                                 nextId, deviceId, error));
+                (objective, error) -> {
+                    log.warn("addToHash failed to add port/label {} to NextObj {} on {}: {}",
+                            portLabels, nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
         NextObjective nextObjective = nextObjBuilder.addToExisting(context);
         flowObjectiveService.next(deviceId, nextObjective);
     }
@@ -428,9 +428,11 @@ public class DefaultGroupHandler {
         ObjectiveContext context = new DefaultObjectiveContext(
                 (objective) -> log.debug("port/label {} removedFrom NextObj"
                         + " {} on {}", portLabels, nextId, deviceId),
-                (objective, error) ->
-                log.warn("port/label {} failed to removeFrom NextObj {} on "
-                        + "{}: {}", portLabels, nextId, deviceId, error));
+                (objective, error) -> {
+                    log.warn("port/label {} failed to removeFrom NextObj {} on {}: {}",
+                            portLabels, nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
         NextObjective nextObjective = nextObjBuilder.removeFromExisting(context);
         flowObjectiveService.next(deviceId, nextObjective);
     }
@@ -710,10 +712,11 @@ public class DefaultGroupHandler {
             (objective) -> log.debug("port {} successfully {} NextObj {} on {}",
                                      port, (portUp) ? "addedTo" : "removedFrom",
                                      nextId, deviceId),
-            (objective, error) ->
-            log.warn("port {} failed to {} NextObj {} on {}: {}",
-                     port, (portUp) ? "addTo" : "removeFrom",
-                     nextId, deviceId, error));
+            (objective, error) -> {
+                log.warn("port {} failed to {} NextObj {} on {}: {}",
+                        port, (portUp) ? "addTo" : "removeFrom", nextId, deviceId, error);
+                srManager.invalidateNextObj(objective.id());
+            });
 
         NextObjective nextObj = (portUp) ? nextObjBuilder.addToExisting(context)
                                          : nextObjBuilder.removeFromExisting(context);
@@ -986,7 +989,7 @@ public class DefaultGroupHandler {
                     }
                     if ((ds.getTypeOfDstSet() == DestinationSet.DestinationSetType.SWAP_NOT_BOS) ||
                          (ds.getTypeOfDstSet() == DestinationSet.DestinationSetType.POP_NOT_BOS)) {
-                        tBuilder.setVlanId(srManager.PSEUDOWIRE_VLAN);
+                        tBuilder.setVlanId(srManager.getPwTransportVlan());
                     }
                     tBuilder.setOutput(sp);
                     nextObjBuilder.addTreatment(tBuilder.build());
@@ -1017,10 +1020,11 @@ public class DefaultGroupHandler {
                 (objective) ->
                 log.debug("createGroupsFromDestinationSet installed "
                         + "NextObj {} on {}", nextId, deviceId),
-                (objective, error) ->
-                log.warn("createGroupsFromDestinationSet failed to install"
-                        + " NextObj {} on {}: {}", nextId, deviceId, error)
-                );
+                (objective, error) -> {
+                    log.warn("createGroupsFromDestinationSet failed to install NextObj {} on {}: {}",
+                            nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
         NextObjective nextObj = nextObjBuilder.add(context);
         log.debug(".. createGroupsFromDestinationSet: Submitted "
                 + "next objective {} in device {}", nextId, deviceId);
@@ -1078,10 +1082,11 @@ public class DefaultGroupHandler {
             (objective) ->
                 log.debug("createBroadcastGroupFromVlan installed "
                         + "NextObj {} on {}", nextId, deviceId),
-            (objective, error) ->
-                log.warn("createBroadcastGroupFromVlan failed to install"
-                        + " NextObj {} on {}: {}", nextId, deviceId, error)
-            );
+            (objective, error) -> {
+                log.warn("createBroadcastGroupFromVlan failed to install NextObj {} on {}: {}",
+                        nextId, deviceId, error);
+                srManager.invalidateNextObj(objective.id());
+            });
         NextObjective nextObj = nextObjBuilder.add(context);
         flowObjectiveService.next(deviceId, nextObj);
         log.debug("createBcastGroupFromVlan: Submitted next objective {} "
@@ -1129,10 +1134,11 @@ public class DefaultGroupHandler {
                 (objective) ->
                         log.debug("removeBroadcastGroupFromVlan removed "
                                           + "NextObj {} on {}", nextId, deviceId),
-                (objective, error) ->
-                        log.warn("removeBroadcastGroupFromVlan failed to remove "
-                                         + " NextObj {} on {}: {}", nextId, deviceId, error)
-        );
+                (objective, error) -> {
+                    log.warn("removeBroadcastGroupFromVlan failed to remove NextObj {} on {}: {}",
+                            nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
         NextObjective nextObj = nextObjBuilder.remove(context);
         flowObjectiveService.next(deviceId, nextObj);
         log.debug("removeBcastGroupFromVlan: Submited next objective {} in device {}",
@@ -1179,10 +1185,10 @@ public class DefaultGroupHandler {
             (objective) ->
                 log.debug("createGroupFromPort installed "
                         + "NextObj {} on {}", nextId, deviceId),
-            (objective, error) ->
-                log.warn("createGroupFromPort failed to install"
-                        + " NextObj {} on {}: {}", nextId, deviceId, error)
-            );
+            (objective, error) -> {
+                log.warn("createGroupFromPort failed to install NextObj {} on {}: {}", nextId, deviceId, error);
+                srManager.invalidateNextObj(objective.id());
+            });
         NextObjective nextObj = nextObjBuilder.add(context);
         flowObjectiveService.next(deviceId, nextObj);
         log.debug("createGroupFromPort: Submited next objective {} in device {} "
@@ -1221,9 +1227,11 @@ public class DefaultGroupHandler {
             ObjectiveContext context = new DefaultObjectiveContext(
                     (objective) -> log.debug("removePortNextObjective removes NextObj {} on {}",
                                              portNextObjId, deviceId),
-                    (objective, error) ->
-                            log.warn("removePortNextObjective failed to remove NextObj {} on {}: {}",
-                                     portNextObjId, deviceId, error));
+                    (objective, error) -> {
+                        log.warn("removePortNextObjective failed to remove NextObj {} on {}: {}",
+                                portNextObjId, deviceId, error);
+                        srManager.invalidateNextObj(objective.id());
+                    });
             NextObjective nextObjective = nextObjBuilder.remove(context);
             log.info("**removePortNextObjective: Submitted "
                              + "next objective {} in device {}",
@@ -1254,9 +1262,10 @@ public class DefaultGroupHandler {
             ObjectiveContext context = new DefaultObjectiveContext(
                     (objective) -> log.debug("RemoveGroup removes NextObj {} on {}",
                             objectiveId, deviceId),
-                    (objective, error) ->
-                            log.warn("RemoveGroup failed to remove NextObj {} on {}: {}",
-                                    objectiveId, deviceId, error));
+                    (objective, error) -> {
+                        log.warn("RemoveGroup failed to remove NextObj {} on {}: {}", objectiveId, deviceId, error);
+                        srManager.invalidateNextObj(objective.id());
+                    });
             NextObjective nextObjective = nextObjBuilder.remove(context);
             log.info("**removeGroup: Submited "
                     + "next objective {} in device {}",
@@ -1294,9 +1303,10 @@ public class DefaultGroupHandler {
                 (objective) ->
                         log.info("removeGroupFromPort installed "
                                           + "NextObj {} on {}", nextId, deviceId),
-                (objective, error) ->
-                        log.warn("removeGroupFromPort failed to install"
-                                         + " NextObj {} on {}: {}", nextId, deviceId, error)
+                (objective, error) -> {
+                    log.warn("removeGroupFromPort failed to install NextObj {} on {}: {}", nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                }
         );
         NextObjective nextObj = nextObjBuilder.remove(context);
         flowObjectiveService.next(deviceId, nextObj);
@@ -1367,9 +1377,10 @@ public class DefaultGroupHandler {
         ObjectiveContext context = new DefaultObjectiveContext(
                 (objective) -> log.debug("port {} successfully updated NextObj {} on {}",
                                          portNumber, nextId, deviceId),
-                (objective, error) ->
-                        log.warn("port {} failed to updated NextObj {} on {}: {}",
-                                 portNumber, nextId, deviceId, error));
+                (objective, error) -> {
+                    log.warn("port {} failed to updated NextObj {} on {}: {}", portNumber, nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
 
         flowObjectiveService.next(deviceId, nextObjBuilder.modify(context));
     }
@@ -1401,9 +1412,10 @@ public class DefaultGroupHandler {
         ObjectiveContext context = new DefaultObjectiveContext(
                 (objective) -> log.debug("port {} successfully removedFrom NextObj {} on {}",
                                          portNum, nextId, deviceId),
-                (objective, error) ->
-                        log.warn("port {} failed to removedFrom NextObj {} on {}: {}",
-                                 portNum, nextId, deviceId, error));
+                (objective, error) -> {
+                    log.warn("port {} failed to removedFrom NextObj {} on {}: {}", portNum, nextId, deviceId, error);
+                    srManager.invalidateNextObj(objective.id());
+                });
 
         if (install) {
             flowObjectiveService.next(deviceId, nextObjBuilder.addToExisting(context));
@@ -1470,7 +1482,7 @@ public class DefaultGroupHandler {
                     log.trace("bkt-corr: dsNextObjStore for device {}: {}",
                               deviceId, dsKey, next);
                     TrafficSelector.Builder metabuilder = DefaultTrafficSelector.builder();
-                    metabuilder.matchVlanId(INTERNAL_VLAN);
+                    metabuilder.matchVlanId(srManager.getDefaultInternalVlan());
                     NextObjective.Builder nextObjBuilder = DefaultNextObjective.builder()
                             .withId(nid)
                             .withType(NextObjective.Type.HASHED)
