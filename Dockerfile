@@ -52,18 +52,17 @@ RUN apt-get update \
     && apt-get update \
     && echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections \
     && apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated \
-    && mkdir -p /onos
 
 # Install ONOS
 COPY --from=builder /onos/buck-out/gen/tools/package/onos-package/onos.tar.gz .
 COPY --from=builder /onos/VERSION .
 
 # Configure ONOS to log to stdout
-RUN tar zxvf onos.tar.gz -C /onos/ \
+RUN tar zxvf onos.tar.gz -C /root/ \
     && rm onos.tar.gz \
     && export ONOS_VERSION=$(cat /VERSION) \
-    && mv /onos/onos-$ONOS_VERSION /onos/onos \
-    && cd onos/onos \
+    && mv /root/onos-$ONOS_VERSION /root/onos \
+    && cd root/onos \
     && sed -ibak '/log4j.rootLogger=/s/$/, stdout/' $(ls -d apache-karaf-*)/etc/org.ops4j.pax.logging.cfg
 
 
@@ -76,6 +75,6 @@ RUN tar zxvf onos.tar.gz -C /onos/ \
 EXPOSE 6653 6640 8181 8101 9876
 
 # Get ready to run command
-WORKDIR /onos/onos
+WORKDIR /root/onos
 ENTRYPOINT ["./bin/onos-service"]
 CMD ["server"]
