@@ -51,7 +51,7 @@ RUN apt-get update \
     && add-apt-repository ppa:webupd8team/java -y \
     && apt-get update \
     && echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections \
-    && apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated \
+    && apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated
 
 # Install ONOS
 COPY --from=builder /onos/buck-out/gen/tools/package/onos-package/onos.tar.gz .
