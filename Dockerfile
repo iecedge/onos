@@ -5,10 +5,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates wget python maven git curl automake bison flex g++ git libboost-all-dev libevent-dev libtool make pkg-config thrift-compiler patch software-properties-common gnupg build-essential gperf ruby perl libsqlite3-dev libfontconfig1-dev libicu-dev libfreetype6 libpng-dev libjpeg-dev libx11-dev libxext-dev zip libssl1.0-dev unzip automake ninja-build golang
 
 RUN apt-get update && \
-    add-apt-repository ppa:webupd8team/java -y && \
-    apt-get update && \
-    echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections && \
-    apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated
+    apt-get install openjdk-8-jdk -y
 
 RUN git clone git://github.com/ariya/phantomjs.git \
     && cd phantomjs \
@@ -47,11 +44,7 @@ RUN export QT_QPA_PLATFORM=minimal \
 FROM debian:stretch
 
 RUN apt-get update \
-  && apt-get install -y curl software-properties-common \
-    && add-apt-repository ppa:webupd8team/java -y \
-    && apt-get update \
-    && echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | debconf-set-selections \
-    && apt-get install oracle-java8-installer oracle-java8-set-default -y --allow-unauthenticated
+  && apt-get install -y curl software-properties-common openjdk-8-jdk
 
 # Install ONOS
 COPY --from=builder /onos/buck-out/gen/tools/package/onos-package/onos.tar.gz .
